@@ -21,11 +21,11 @@ def register_socketio_handlers(socketio):
     @socketio.on('get_chat_list')
     def handle_chat_list(data):
         try:
-            username = data.get('username')
-            if not username:
-                emit('chat_list', "Username required")
+            session_id_prefix = data.get('session_id_prefix')
+            if not session_id_prefix:
+                emit('chat_list', "session_id_prefix required")
             else:
-                chat_histories = chat_service.listChats(username)
+                chat_histories = chat_service.listChats(session_id_prefix)
                 if not chat_histories:
                     emit('chat_list', "Empty here")
                 else:
@@ -34,13 +34,13 @@ def register_socketio_handlers(socketio):
             emit('chat_list', str(e))
 
     @socketio.on('fetch_chat_history')
-    def handle_chat_list(data):
+    def handle_chat_history(data):
         try:
-            username = data.get('username')
-            if not username:
-                emit('fetched_chat_history', "Username required")
+            session_id = data.get('session_id')
+            if not session_id:
+                emit('fetched_chat_history', "Session id required")
             else:
-                chat_histories = chat_service.getMessage(username)
+                chat_histories = chat_service.getMessage(session_id)
                 if not chat_histories:
                     emit('fetched_chat_history', "")
                 else:
@@ -48,8 +48,7 @@ def register_socketio_handlers(socketio):
                     emit('fetched_chat_history', chat_histories)
         except Exception as e:
             emit('fetched_chat_history', str(e))
-     
-            
+                
     @socketio.on('disconnect')
     def handle_disconnect():
         print('Client disconnected')
@@ -59,17 +58,20 @@ def register_socketio_handlers(socketio):
         try:
             print('msg received ', data)
             clientId = data.get('client_id')
+            botId = data.get('bot_id')
             message = data.get('message')
             sessionId = data.get("session_id")
             
-            if not clientId or message is None:
+            if not clientId or not message or botId is None:
                 emit('response', "Something went wrong")
             if message and clientId:
                 if sessionId == "":
-                    sessionId = chat_service.createNewChat(clientId)
-                response = llm_service.connectModel( message, clientId, sessionId)
+                    sessionId = chat_service.createNewChat(clientId, botId)
+                    chat_histories = chat_service.listChats(f'{clientId}_{botId}')
+                    emit('chat_list', chat_histories)
+                response = llm_service.connectModel( message, clientId, botId, sessionId)
                 if response.get("error"):
-                    print(response)
+                    print('response at 73 ',response)
                     emit('response', response['error'])
                 else:
                     # save_chat = chat_servic_ide.storeMessage(clientId, message, response['message'], sessionId)

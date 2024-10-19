@@ -10,6 +10,9 @@ class Config:
     AGENT_ARN = os.environ.get('AGENT_ARN')
     
     #DB config
-    MONGODB_SETTINGS = {
-        'host': "mongodb://localhost:27017/chatbot"
-    }
+    SQLALCHEMY_DATABASE_URI = 'mysql+mysqlconnector://gshan:pwd123@localhost/edubot'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # MONGODB_SETTINGS = {
+    #     'host': "mongodb://localhost:27017/schoolbot"
+    # }
