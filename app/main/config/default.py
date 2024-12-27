@@ -1,16 +1,13 @@
 import os
 
 class Config:
-    REGION_NAME = os.environ.get('REGION_NAME')
-    AGENT_ID = os.environ.get('AGENT_ID')
-    AGENT_ALIAS_ID = os.environ.get('AGENT_ALIAS_ID')
-    SERVICE_NAME = os.environ.get('SERVICE_NAME')
-    ANTHROPIC_VERSION = os.environ.get('ANTHROPIC_VERSION')
-    MODEL_ID = os.environ.get('MODEL_ID')
-    AGENT_ARN = os.environ.get('AGENT_ARN')
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'default_secret_key')
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+    ASSISTANT_ID = os.environ.get('ASSISTANT_ID')
+    OPENAI_MODEL = os.environ.get('OPENAI_MODEL')
     
     #DB config
-    SQLALCHEMY_DATABASE_URI = 'mysql+mysqlconnector://gshan:pwd123@localhost/edubot'
+    SQLALCHEMY_DATABASE_URI = 'mysql+mysqlconnector://user:@localhost/edubot'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # MONGODB_SETTINGS = {

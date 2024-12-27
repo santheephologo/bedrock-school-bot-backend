@@ -31,7 +31,7 @@ def create_app():
 
     # Initialize SQLAlchemy with the app
     db.init_app(app)
-    migrate.init_app(app, db)
+    # migrate.init_app(app, db)
     
     # Register SocketIO handlers
     register_socketio_handlers(socketio)

@@ -12,7 +12,7 @@ class BotService:
         from main import db 
         return db.session
 
-    def botRegister(self, name, agent_id, alias_id):
+    def botRegister(self, name, assistant_id):
         try:
             existing_bot = self.db_session.query(Bot).filter_by(name=name).first()
             if existing_bot:
@@ -20,8 +20,9 @@ class BotService:
             else:
                 bot = Bot(
                     name=name,
-                    agent_id=agent_id,
-                    alias_id=alias_id,
+                    assistant_id = assistant_id,
+                    # agent_id=agent_id,
+                    # alias_id=alias_id,
                     is_active=True,
                 )
                 self.db_session.add(bot)
@@ -32,13 +33,14 @@ class BotService:
             print(f"Error in bot registration: {e}")
             return None
 
-    def updateBot(self, name, bot_id, agent_id, alias_id):
+    def updateBot(self, name, bot_id, assistant_id):
         try:
             bot = self.db_session.query(Bot).filter_by(id=int(bot_id)).first()
             if bot:
                 bot.name = name
-                bot.agent_id = agent_id
-                bot.alias_id = alias_id
+                bot.assistant_id = assistant_id
+                # bot.agent_id = agent_id
+                # bot.alias_id = alias_id
                 self.db_session.commit()
                 return True
             return False

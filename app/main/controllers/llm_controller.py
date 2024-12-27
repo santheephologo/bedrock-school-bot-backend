@@ -29,6 +29,7 @@ def register_socketio_handlers(socketio):
                 if not chat_histories:
                     emit('chat_list', "Empty here")
                 else:
+                    print('chat_list', chat_histories)
                     emit('chat_list', chat_histories)
         except Exception as e:
             emit('chat_list', str(e))
@@ -62,19 +63,25 @@ def register_socketio_handlers(socketio):
             message = data.get('message')
             sessionId = data.get("session_id")
             
-            if not clientId or not message or botId is None:
+            if not clientId or not message or not botId or sessionId is None:
                 emit('response', "Something went wrong")
             if message and clientId:
                 if sessionId == "":
                     sessionId = chat_service.createNewChat(clientId, botId)
+                    print(sessionId)
                     chat_histories = chat_service.listChats(f'{clientId}_{botId}')
                     emit('chat_list', chat_histories)
-                response = llm_service.connectModel( message, clientId, botId, sessionId)
+                print("session id ", sessionId)
+                threadId = chat_service.getThreadId(session_id=sessionId)
+                print("thread id ", threadId)
+                response = llm_service.connectModel( message, clientId, botId, sessionId, threadId)
+                print("resp final ", response)
                 if response.get("error"):
                     print('response at 73 ',response)
-                    emit('response', response['error'])
+                    emit('response', {"reply":response['error'], "session_id": sessionId})
+             
                 else:
-                    # save_chat = chat_servic_ide.storeMessage(clientId, message, response['message'], sessionId)
+                    chat_service.storeMessage(sessionId, message, response['message'])
                     print('response', response)
                     emit('response', {"reply":response['message'], "session_id": sessionId})
                     

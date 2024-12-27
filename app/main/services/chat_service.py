@@ -1,13 +1,16 @@
 from sqlalchemy.orm import Session
-from flask import jsonify
+
+from flask import current_app
 from main.models.chat_history import ChatHistory
 from main.models.message import Message    
+from main.services.llm_service import LLMService
 import datetime
 
 class ChatService:
     
     def __init__(self):
-        pass
+        self.llm_service = LLMService()
+        # pass
     
     @property
     def db_session(self):
@@ -44,17 +47,24 @@ class ChatService:
             
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             formatted_session_id = f"{clientId}_{botId}_{timestamp}"
-
-            chat_history = ChatHistory(session_id=formatted_session_id)
+            thread_id = self.llm_service.createThread(current_app.config['OPENAI_API_KEY'])
+            chat_history = ChatHistory(thread_id=thread_id, session_id=formatted_session_id)
             self.db_session.add(chat_history)  
             self.db_session.commit() 
             print(formatted_session_id)
             return formatted_session_id
+        
         except Exception as e:
             print(f"Error creating new chat: {e}")
             self.db_session.rollback()  
             return None
-
+    def getThreadId(self, session_id):
+        try:
+            thread = self.db_session.query(ChatHistory).filter_by(session_id=session_id).first()
+            return thread.thread_id if thread else None
+        except Exception as e:
+            print(f"Error fetching chat history: {e}")
+            return None
     def getMessage(self, session_id):
         try:
             chat_history = self.db_session.query(ChatHistory).filter_by(session_id=session_id).first()

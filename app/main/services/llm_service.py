@@ -1,28 +1,23 @@
 from main.models.client_bot import ClientBot
 from main.models.client import Client
 from threading import  Lock
-import boto3
-import botocore
-from botocore.client import BaseClient
-from botocore.exceptions import ClientError
-from langchain_aws import ChatBedrock
 from utils._tokenizers import TokenizerManager
-from main.services.chat_service import ChatService
 from main.services.bot_service import BotService
 from flask import current_app
-import json
+import requests
 import tiktoken
 import re
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
+import openai
+import time
 class LLMService:
     
     def __init__(self ):
       
         self.locks = {}
         self.tokenizer_manager = TokenizerManager()
-        self.chat_service = ChatService()
+
         self.bot_service = BotService()
         # self.queues = {}
     
@@ -72,7 +67,80 @@ class LLMService:
     #                 bot.tkns_used += tkns_used
     #                 bot.tkns_remaining -= tkns_used
     #                 client.save()
-            
+    def createThread(self, apiToken):
+        # print("createThread")
+        url = 'https://api.openai.com/v1/threads'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {apiToken}',
+            'OpenAI-Beta': 'assistants=v2'
+        }
+
+        response = requests.post(url, headers=headers)
+        return response.json()['id']
+
+    def sendMessageThread(self, apiToken, threadID, message, clientId):
+        # print("sendMessageThread")
+        url = f'https://api.openai.com/v1/threads/{threadID}/messages'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {apiToken}',
+            'OpenAI-Beta': 'assistants=v2'
+        }
+
+        data = [
+            {
+            "role": "user",
+            "content": message
+        }
+        ]
+        num_tokens = self.getTokenCount(data)
+        # self.updateTokenUsage(clientId, num_tokens)
+
+        response = requests.post(url, headers=headers, json=data)
+        return response.json(), num_tokens
+
+    def runThread(self, apiToken, threadID, assistant_ID):
+        # print("runThread")
+        url = f'https://api.openai.com/v1/threads/{threadID}/runs'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {apiToken}',
+            'OpenAI-Beta': 'assistants=v2'
+        }
+
+        data = {"assistant_id": assistant_ID}
+
+        response = requests.post(url, headers=headers, json=data)
+        return response.json()['id']
+
+    def checkRunStatus(self, apiToken, threadID, runID):
+        # print("checkRunStatus")
+        url = f'https://api.openai.com/v1/threads/{threadID}/runs/{runID}'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {apiToken}',
+            'OpenAI-Beta': 'assistants=v2'
+        }
+        response = requests.get(url, headers=headers)
+        print("checkRunStatus : ", response.json())
+        return response.json()['status']
+
+    def retrieveMessage(self, apiToken, threadID, clientId):
+        # print("retrieveMessage")
+        url = f'https://api.openai.com/v1/threads/{threadID}/messages'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {apiToken}',
+            'OpenAI-Beta': 'assistants=v2'
+        }
+        response = requests.get(url, headers=headers)
+
+        reply_data = response.json()['data'][0]['content'][0]['text']['value']
+        reply_tokens = self.getTokenCount([{"role": "assistant", "content": reply_data}])
+        # self.updateTokenUsage(clientId, reply_tokens)
+        return reply_data, reply_tokens            
+    
     def convert_to_valid_session_id(self, session_id):
         # Replace all invalid characters with underscores
         print("running conversion")
@@ -83,69 +151,61 @@ class LLMService:
         print(valid_session_id)
         return valid_session_id 
                       
-    def process_request(self, message, clientId, botId, sessionId):
+    def process_request(self, message, botId, sessionId, threadId):
         try:
             bot = self.bot_service.returnBot(bot_id=botId)
             print("bot", bot)
-            region_name = current_app.config['REGION_NAME']
-            agent_id = bot['agent_id']
-            agent_alias_id = bot['alias_id']
-            model_id = current_app.config['MODEL_ID']
-            session_id = self.convert_to_valid_session_id(sessionId)
+            # region_name = current_app.config['REGION_NAME']
+            # agent_id = bot['agent_id']
+            assistant_ID = bot['assistant_id']
+            # model_id = current_app.config['MODEL_ID']
+            # threadID = self.chat_service.getThreadId(session_id=sessionId)
+            # session_id = self.convert_to_valid_session_id(sessionId)
 
-            completion = ""
-            traces = []
+            openai.api_key = current_app.config['OPENAI_API_KEY'],
+            client = openai.OpenAI()
+            message = client.beta.threads.messages.create(thread_id=threadId, role="user", content=message)
+            thread_run = client.beta.threads.runs.create(thread_id=threadId, assistant_id=assistant_ID,instructions="you are a science tutor for stage 3 students.Main lesson topics are:1.Looking After Plants 2.Mixing Materials 3.Light and Shadows 4.Staying Alive 5.Forces & Magnets 6.The Earth & Moon.Stricly stick to these topics and base all your answers on the training data.")
             
-            config = botocore.config.Config(
-                read_timeout=900,
-                connect_timeout=900,
-                retries={"max_attempts": 0}
-            )            
-            bedrock_client = boto3.client(
-                service_name="bedrock-agent-runtime",
-                region_name=region_name,
-                config=config
-            )
-            
-            llm = ChatBedrock(client=bedrock_client, model_id=model_id)
-            # input_tkns = llm.get_num_tokens(message)
-            input_tkns = self.getTokenCount([{"role": "user", "content": message}])
-            print("tkn in input : ", input_tkns)
-           
-            response = bedrock_client.invoke_agent(
-                agentId=agent_id,
-                agentAliasId=agent_alias_id,
-                sessionId=session_id,
-                inputText=message
-            )
-            print('response : ',response)
-            for event in response.get("completion"):
-                print(event)
+            while True:
                 try:
-                    trace = event["trace"]
-                    traces.append(trace['trace'])
-                except KeyError:
-                    chunk = event["chunk"]
-                    completion = completion + chunk["bytes"].decode()
+                    run = client.beta.threads.runs.retrieve(thread_id=threadId, run_id=thread_run.id)
+                    if run.completed_at:
+                        elapsed_time = run.completed_at - run.created_at
+                        formatted_elapsed_time = time.strftime("%H:%M:%S", time.gmtime(elapsed_time))
+                        print(f"Run completed in {formatted_elapsed_time}")
+                        messages = client.beta.threads.messages.list(thread_id=threadId)
+                        run_steps = client.beta.threads.runs.steps.list(thread_id=threadId, run_id=thread_run.id)
+                        last_message = messages.data[0]
+                        response = last_message.content[0].text.value
+                        return{
+                            "message": response,
+                            "completion_tokens":run_steps.data[0].usage.completion_tokens,
+                            "prompt_tokens":run_steps.data[0].usage.prompt_tokens,
+                            "total_tokens":run_steps.data[0].usage.total_tokens,
+                            "threadId":run_steps.data[0].thread_id
+                        }
+                            
                 except Exception as e:
-                    print(e)
+                        print((f"An error occurred while retrieving the run: {e}"))
+                        break
 
-        except ClientError as e:
+        except Exception as e:
             print(e)
         
-        print('completion : ',completion)
-        print(type(completion))
-        # output_tkns = llm.get_num_tokens(completion)
-        output_tkns = self.getTokenCount([{"role": "user", "content": completion}])
-        self.updateTokenUsage(clientId, botId, (input_tkns + output_tkns))
-        print("tkn in output : ", output_tkns)
-        self.chat_service.storeMessage(sessionId, message, completion)
-        return {
-            "message": completion,
-            "token usage" : input_tkns + output_tkns
-        }
+        # print('completion : ',completion)
+        # print(type(completion))
+        # # output_tkns = llm.get_num_tokens(completion)
+        # output_tkns = self.getTokenCount([{"role": "user", "content": completion}])
+        # self.updateTokenUsage(clientId, botId, (input_tkns + output_tkns))
+        # print("tkn in output : ", output_tkns)
+        # self.chat_service.storeMessage(sessionId, message, completion)
+        # return {
+        #     "message": completion,
+        #     "token usage" : input_tkns + output_tkns
+        # }
 
-    def connectModel(self, message, clientId, botId, sessionId):
+    def connectModel(self, message,clientId,  botId, sessionId, threadId):
         try:    
             remaining_tkns = self.checkRemainingTokens(clientId, botId)
             msg_tkn = self.getTokenCount([{"role": "user", "content": message}])
@@ -154,7 +214,21 @@ class LLMService:
                 return {"error": "Remaining tokens are too low. Please recharge to get replies"}
             if remaining_tkns <= 0:
                 return {"error": "Token limit reached"}
-            result = self.process_request(message, clientId, botId, sessionId)
+
+            # Check moderation
+            moderation_result = self.moderate_content(
+                current_app.config['OPENAI_API_KEY'],
+                message
+            )
+            if moderation_result["flagged"]:
+                return {
+                    "error": "Message contains content that violates our policy.",
+                    "categories": moderation_result["categories"]
+                }            
+            
+            result = self.process_request(message, botId, sessionId, threadId)
+            print("tkns ",result["total_tokens"] )
+            self.updateTokenUsage( clientId, botId, result["total_tokens"])
             return result
         
         except Exception as e: 
@@ -194,3 +268,23 @@ class LLMService:
             return num_tokens
         else:
             raise NotImplementedError(f"""getTokenCount() is not presently implemented for model {model}.""")
+
+    def moderate_content(self, apiToken, message):
+        #OpenAI's Moderation API to check content
+        url = "https://api.openai.com/v1/moderations"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {apiToken}"
+        }
+        data = {"input": message}
+
+        response = requests.post(url, headers=headers, json=data)
+        result = response.json()
+
+        if response.status_code == 200:
+            flagged = result["results"][0]["flagged"]
+            categories = result["results"][0]["categories"]
+            print({"flagged": flagged, "categories": categories})
+            return {"flagged": flagged, "categories": categories}
+        else:
+            raise Exception(f"Moderation API Error: {result}")

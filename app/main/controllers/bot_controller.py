@@ -13,17 +13,18 @@ def index():
 def register():
     data = request.json
     name = data.get('name')
-    agent_id = data.get('agent_id')
-    alias_id = data.get('alias_id')
+    assistant_id = data.get('assistant_id')
+    # agent_id = data.get('agent_id')
+    # alias_id = data.get('alias_id')
 
-    if not name or not agent_id or not alias_id:
-        return jsonify({"error": "Invalid data provided"}), 400
+    if not name or not assistant_id:
+        return jsonify({"error": "Invalid data provided"}), 422
     try:
-        response = bot_service.botRegister(name,agent_id, alias_id)
+        response = bot_service.botRegister(name, assistant_id)
         if response is not None:
             return jsonify({"success": "Bot added"}), 201
         else:
-            return jsonify({"error": "Bot name already exists"}), 400
+            return jsonify({"error": "Bot name already exists"}), 409
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -79,13 +80,14 @@ def update_bot():
     data = request.json
     name = data.get('name')
     bot_id = data.get('bot_id')
-    agent_id = data.get('agent_id')
-    alias_id = data.get('alias_id')
+    assistant_id = data.get('assistant_id')
+    # agent_id = data.get('agent_id')
+    # alias_id = data.get('alias_id')
 
-    if not name or not bot_id or not agent_id or not alias_id:
+    if not name or not bot_id or not assistant_id:
         return jsonify({"error": "Invalid data provided"}), 400
     try:
-        response = bot_service.updateBot(name, bot_id, agent_id, alias_id)
+        response = bot_service.updateBot(name, bot_id, assistant_id)
         if response is not None:
             return jsonify("Success ","updated"), 200
         else:

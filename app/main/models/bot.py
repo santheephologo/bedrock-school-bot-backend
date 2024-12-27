@@ -8,8 +8,9 @@ class Bot(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, unique=True, nullable=False)
-    agent_id = db.Column(db.String, nullable=False)
-    alias_id = db.Column(db.String, nullable=False)
+    assistant_id = db.Column(db.String, nullable=False)
+    # agent_id = db.Column(db.String, nullable=False)
+    # alias_id = db.Column(db.String, nullable=False)
     is_active = db.Column(db.Boolean, default=True) 
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
@@ -20,8 +21,9 @@ class Bot(db.Model):
         return {
             "id": self.id,
             "name": self.name,
-            "agent_id": self.agent_id,
-            "alias_id": self.alias_id,
+            "assistant_id": self.assistant_id,
+            # "agent_id": self.agent_id,
+            # "alias_id": self.alias_id,
             "is_active": self.is_active,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S")
         }

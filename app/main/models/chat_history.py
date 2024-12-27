@@ -11,6 +11,7 @@ class ChatHistory(db.Model):
     __tablename__ = 'chat_histories'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    thread_id = db.Column(db.String, unique=True, nullable=False)
     session_id = db.Column(db.String, unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     # messages = db.Column(db.JSON, nullable=False, default=[])
     messages = db.Column(MutableList.as_mutable(JSON), nullable=False, default=[])
@@ -21,6 +22,7 @@ class ChatHistory(db.Model):
     def to_json(self):
         return {
             "id": str(self.id),
+            "thread_id":self.thread_id,
             "session_id": self.session_id,
             "messages": [message for message in self.messages] ,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -31,6 +33,7 @@ class ChatHistory(db.Model):
         """Helper method to create a ChatHistory object from JSON data."""
         created_at = datetime.datetime.strptime(data['created_at'], "%Y-%m-%d %H:%M:%S")
         chat_history = ChatHistory(
+            thread_id=data['thread_id'],
             session_id=data['session_id'],
             messages=data['messages'],
             created_at = created_at

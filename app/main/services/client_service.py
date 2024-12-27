@@ -64,8 +64,8 @@ class ClientService:
 
             for bot in client_bots:
                 for client in clients_with_bots:
-                    if bot.client_id == int(client_json['id']):
-                        client_json['bots'].append(bot.to_json())
+                    if bot.client_id == int(client['id']):
+                        client['bots'].append(bot.to_json())
        
             return clients_with_bots
         except Exception as e:
